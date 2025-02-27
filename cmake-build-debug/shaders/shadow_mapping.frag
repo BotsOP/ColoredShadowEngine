@@ -11,9 +11,30 @@ in VS_OUT {
 uniform sampler2D shadowIDMap;
 uniform sampler2D shadowMap;
 uniform sampler2D diffuseTexture;
+uniform sampler2D shadowCasterMap;
 
 uniform vec3 lightPos;
 uniform vec3 viewPos;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+uniform mat4 lightSpaceMatrix;
+
+
+vec2 calculateScreenSpaceUV() {
+    // Transform fragment position to clip space
+    vec4 clipPos = projection * view * vec4(fs_in.FragPos, 1.0);
+
+    // Convert to NDC (Normalized Device Coordinates)
+    vec3 ndcPos = clipPos.xyz / clipPos.w;
+
+    // Map from NDC [-1,1] to UV [0,1] range
+    // Note: We flip Y because texture coordinates have origin at bottom-left
+    vec2 screenSpaceUV = vec2(ndcPos.x * 0.5 + 0.5, ndcPos.y * 0.5 + 0.5);
+
+    return screenSpaceUV;
+}
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
@@ -51,6 +72,12 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     return shadow;
 }
 
+float random(float seed)
+{
+    return fract(sin(seed) * 43758.5453123);
+}
+
+
 void main()
 {
     vec3 color = texture(diffuseTexture, fs_in.TexCoords).rgb;
@@ -73,16 +100,20 @@ void main()
     float shadow = ShadowCalculation(fs_in.FragPosLightSpace);
 
     vec3 projCoords = fs_in.FragPosLightSpace.xyz / fs_in.FragPosLightSpace.w;
-    // transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
-    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
-    float currentDepth = projCoords.z;
-//    float test = mix(0, closestDepth, shadow);
-//    FragColor = vec4(test, test, test, 1.0);
+    float closestDepth = texture(shadowIDMap, projCoords.xy).r;
     vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
-//    vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
 
-    FragColor = vec4(lighting, 1.0);
+    vec2 screenUV = calculateScreenSpaceUV();
+    float shadowCasterMask = texture(shadowCasterMap, screenUV).r;
+
+    if(closestDepth > 0 && abs(closestDepth - shadowCasterMask) > 0.1)
+    {
+        FragColor = vec4(random(closestDepth), random(closestDepth + 1), random(closestDepth + 2), 1.0);
+    }
+    else
+    {
+        FragColor = vec4(lighting, 1.0);
+    }
 }
 
