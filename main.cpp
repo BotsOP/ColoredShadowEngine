@@ -174,11 +174,11 @@ int main()
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shadowCasterMap, 0);
 
-    // unsigned int depthRBO;
-    // glGenRenderbuffers(1, &depthRBO);
-    // glBindRenderbuffer(GL_RENDERBUFFER, depthRBO);
-    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT);
-    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRBO);
+    unsigned int depthRBO;
+    glGenRenderbuffers(1, &depthRBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, depthRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRBO);
     //
     // // Set the draw buffer
     // GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
@@ -209,6 +209,7 @@ int main()
     // lighting info
     // -------------
     glm::vec3 lightPos(1.0f, 4.0f, -1.0f);
+    glDepthFunc(GL_LESS);
 
     // render loop
     // -----------
@@ -262,14 +263,11 @@ int main()
         glBindTexture(GL_TEXTURE_2D, woodTexture);
         renderScene(simpleDepthShader);
 
-
-
         glCullFace(GL_BACK);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // reset viewport
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // 2. render scene as normal using the generated depth/shadow map
         // --------------------------------------------------------------
@@ -285,11 +283,7 @@ int main()
         shaderCaster.use();
         shaderCaster.setMat4("projection", projection);
         shaderCaster.setMat4("view", view);
-        // shaderCaster.setVec3("viewPos", camera.Position);
-        // shaderCaster.setVec3("lightPos", lightPos);
-        shaderCaster.setMat4("lightSpaceMatrix", lightSpaceMatrix);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-        // glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowCasterMapFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderScene(shaderCaster);
@@ -316,8 +310,16 @@ int main()
         debugDepthQuad.setFloat("near_plane", near_plane);
         debugDepthQuad.setFloat("far_plane", far_plane);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, shadowCasterMap);
-        // renderQuad();
+        if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
+        {
+            glBindTexture(GL_TEXTURE_2D, shadowCasterMap);
+            renderQuad();
+        }
+        if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS)
+        {
+            glBindTexture(GL_TEXTURE_2D, shadowIDMap);
+            renderQuad();
+        }
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -342,7 +344,6 @@ void renderScene(const Shader &shader)
 {
     // floor
     shader.setFloat("shadowID", 0);
-
     glm::mat4 model = glm::mat4(1.0f);
     shader.setMat4("model", model);
     glBindVertexArray(planeVAO);
@@ -355,7 +356,7 @@ void renderScene(const Shader &shader)
     shader.setFloat("shadowID", 1);
     renderCube();
     model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(2.0f, 0.0f, 1.0));
+    model = glm::translate(model, glm::vec3(0.0f, 0.0f, 1.0));
     model = glm::scale(model, glm::vec3(0.5f));
     shader.setMat4("model", model);
     shader.setFloat("shadowID", 0.3);
