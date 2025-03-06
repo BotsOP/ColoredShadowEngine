@@ -123,10 +123,14 @@ int main()
 
     // configure depth map FBO
     // -----------------------
+    float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
     const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+
     unsigned int depthMapFBO;
     glGenFramebuffers(1, &depthMapFBO);
-    // create depth texture
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+
+    // Create depth texture
     unsigned int depthMap;
     glGenTextures(1, &depthMap);
     glBindTexture(GL_TEXTURE_2D, depthMap);
@@ -135,28 +139,36 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
 
-    // create shadow material id map
-    unsigned int shadowIDMapFBO;
-    glGenFramebuffers(1, &shadowIDMapFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, shadowIDMapFBO);
+    borderColor[0] = 0.0;
+    borderColor[1] = 0.0;
+    borderColor[2] = 0.0;
 
+    // Create color texture
     unsigned int shadowIDMap;
     glGenTextures(1, &shadowIDMap);
     glBindTexture(GL_TEXTURE_2D, shadowIDMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    borderColor[0] = 0.0;
-    borderColor[1] = 0.0;
-    borderColor[2] = 0.0;
-    borderColor[3] = 1.0;
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    // Attach color texture to framebuffer
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shadowIDMap, 0);
+
+    // Specify draw buffers
+    GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(1, drawBuffers);
+
+    // Check framebuffer completeness
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Framebuffer is not complete!" << std::endl;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     //object shadow receiving map
     unsigned int shadowCasterMapFBO;
@@ -177,23 +189,16 @@ int main()
     unsigned int depthRBO;
     glGenRenderbuffers(1, &depthRBO);
     glBindRenderbuffer(GL_RENDERBUFFER, depthRBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SCR_WIDTH, SCR_HEIGHT);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRBO);
-    //
-    // // Set the draw buffer
-    // GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
-    // glDrawBuffers(1, DrawBuffers);
+
+    // Set the draw buffer
+    GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, DrawBuffers);
 
     // Check if FBO is complete
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         std::cout << "Framebuffer is not complete!" << std::endl;
-
-    // attach depth texture as FBO's depth buffer
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
-    glDrawBuffer(GL_NONE);
-    glReadBuffer(GL_NONE);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
     // shader configuration
@@ -232,42 +237,40 @@ int main()
 
         // render
         // ------
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // 1. render depth of scene to texture (from light's perspective)
         // --------------------------------------------------------------
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
-        float near_plane = 1.0f, far_plane = 7.5f;
-        //lightProjection = glm::perspective(glm::radians(45.0f), (GLfloat)SHADOW_WIDTH / (GLfloat)SHADOW_HEIGHT, near_plane, far_plane); // note that if you use a perspective projection matrix you'll have to change the light position as the current light position isn't enough to reflect the whole scene
+        float near_plane = 0.1f, far_plane = 7.5f;
         lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
         lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
         // render scene from light's point of view
         simpleDepthShader.use();
         simpleDepthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+        simpleDepthShader.setFloat("shadowID", 1.0f);
 
-        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, woodTexture);
-        glCullFace(GL_FRONT);
-        renderScene(simpleDepthShader);
-
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-        glBindFramebuffer(GL_FRAMEBUFFER, shadowIDMapFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, woodTexture);
+
+        // Enable depth testing and set face culling
+        glEnable(GL_DEPTH_TEST);
+        glCullFace(GL_BACK);  // For shadow mapping
         renderScene(simpleDepthShader);
 
-        glCullFace(GL_BACK);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        // glBindFramebuffer(GL_FRAMEBUFFER, depthMapIDFBO);
+        // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // renderScene(simpleDepthShader);
 
         // reset viewport
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+        glCullFace(GL_BACK);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // 2. render scene as normal using the generated depth/shadow map
         // --------------------------------------------------------------
@@ -318,6 +321,11 @@ int main()
         if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS)
         {
             glBindTexture(GL_TEXTURE_2D, shadowIDMap);
+            renderQuad();
+        }
+        if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS)
+        {
+            glBindTexture(GL_TEXTURE_2D, depthMap);
             renderQuad();
         }
 

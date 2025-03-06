@@ -106,8 +106,10 @@ void main()
 
     vec2 screenUV = calculateScreenSpaceUV();
     float shadowCasterMask = texture(shadowCasterMap, screenUV).r;
+//    FragColor = vec4(closestDepth, 0.0, 0.0, 1.0);
+//    return;
 
-    if(closestDepth > 0 && abs(closestDepth - shadowCasterMask) > 0.1)
+    if(closestDepth > 0 && abs(closestDepth - shadowCasterMask) > 0.5)
     {
         FragColor = vec4(random(closestDepth), random(closestDepth + 1), random(closestDepth + 2), 1.0);
     }
@@ -115,6 +117,5 @@ void main()
     {
         FragColor = vec4(lighting, 1.0);
     }
-//    FragColor = vec4(lighting, 1.0);
 }
 
