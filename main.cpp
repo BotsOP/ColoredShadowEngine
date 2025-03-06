@@ -150,7 +150,7 @@ int main()
     unsigned int shadowIDMap;
     glGenTextures(1, &shadowIDMap);
     glBindTexture(GL_TEXTURE_2D, shadowIDMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -361,7 +361,7 @@ void renderScene(const Shader &shader)
     model = glm::translate(model, glm::vec3(0.0f, 1.5f, 0.0));
     model = glm::scale(model, glm::vec3(0.5f));
     shader.setMat4("model", model);
-    shader.setFloat("shadowID", 1);
+    shader.setFloat("shadowID", 1.0);
     renderCube();
     model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 1.0));

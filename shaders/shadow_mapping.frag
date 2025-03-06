@@ -36,14 +36,14 @@ vec2 calculateScreenSpaceUV() {
     return screenSpaceUV;
 }
 
-float ShadowCalculation(vec4 fragPosLightSpace)
+float ShadowCalculation(vec4 fragPosLightSpace, sampler2D toSample)
 {
     // perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     // transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
     // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
+    float closestDepth = texture(toSample, projCoords.xy).r;
     // get depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     // calculate bias (based on depth map resolution and slope)
@@ -54,12 +54,12 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     // float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
     // PCF
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    vec2 texelSize = 1.0 / textureSize(toSample, 0);
     for(int x = -1; x <= 1; ++x)
     {
         for(int y = -1; y <= 1; ++y)
         {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            float pcfDepth = texture(toSample, projCoords.xy + vec2(x, y) * texelSize).r;
             shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
         }
     }
@@ -97,19 +97,33 @@ void main()
     spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
     vec3 specular = spec * lightColor;
     // calculate shadow
-    float shadow = ShadowCalculation(fs_in.FragPosLightSpace);
+    float shadow = ShadowCalculation(fs_in.FragPosLightSpace, shadowMap);
 
     vec3 projCoords = fs_in.FragPosLightSpace.xyz / fs_in.FragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
     float closestDepth = texture(shadowIDMap, projCoords.xy).r;
+//    float closestDepth = 0;
+//    for (int i = -1; i < 2; i++) {
+//        for (int j = -1; j < 2; j++) {
+//            float offsetIncrement = 0.001;
+//            vec2 offset = vec2(i * offsetIncrement, j * offsetIncrement);
+//            closestDepth += texture(shadowIDMap, projCoords.xy + offset).r;
+////            closestDepth = min(closestDepth, texture(shadowIDMap, projCoords.xy + offset).r);
+//        }
+//    }
+//    closestDepth /= 9;
+
+
     vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
 
     vec2 screenUV = calculateScreenSpaceUV();
     float shadowCasterMask = texture(shadowCasterMap, screenUV).r;
-//    FragColor = vec4(closestDepth, 0.0, 0.0, 1.0);
+
+    float test = abs(closestDepth - shadowCasterMask);
+//    FragColor = vec4(test, test, test, 1.0);
 //    return;
 
-    if(closestDepth > 0 && abs(closestDepth - shadowCasterMask) > 0.5)
+    if(closestDepth > 0 && !(abs(closestDepth - shadowCasterMask) < 0.1))
     {
         FragColor = vec4(random(closestDepth), random(closestDepth + 1), random(closestDepth + 2), 1.0);
     }
